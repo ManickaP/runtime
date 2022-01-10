@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Quic;
 using System.Net.Security;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -189,6 +190,12 @@ namespace System.Net.Http
         }
 
         public Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>>? ConnectCallback
+        {
+            get => throw new PlatformNotSupportedException();
+            set => throw new PlatformNotSupportedException();
+        }
+
+        public Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<QuicConnection>>? QuicConnectCallback
         {
             get => throw new PlatformNotSupportedException();
             set => throw new PlatformNotSupportedException();

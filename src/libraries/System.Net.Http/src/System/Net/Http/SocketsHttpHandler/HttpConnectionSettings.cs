@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Net.Security;
 using System.IO;
+using System.Net.Quic;
 using System.Net.Quic.Implementations;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -57,6 +58,7 @@ namespace System.Net.Http
         internal bool _enableMultipleHttp2Connections;
 
         internal Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>>? _connectCallback;
+        internal Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<QuicConnection>>? _quicConnectCallback;
         internal Func<SocketsHttpPlaintextStreamFilterContext, CancellationToken, ValueTask<Stream>>? _plaintextStreamFilter;
 
         // !!! NOTE !!! This is temporary and will not ship.
@@ -127,6 +129,7 @@ namespace System.Net.Http
             if (HttpConnectionPool.IsHttp3Supported())
             {
                 settings._quicImplementationProvider = _quicImplementationProvider;
+                settings._quicConnectCallback = _quicConnectCallback;
             }
 
             return settings;

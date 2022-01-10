@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Quic;
 using System.Net.Security;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -402,6 +403,16 @@ namespace System.Net.Http
             {
                 CheckDisposedOrStarted();
                 _settings._connectCallback = value;
+            }
+        }
+
+        public Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<QuicConnection>>? QuicConnectCallback
+        {
+            get => _settings._quicConnectCallback;
+            set
+            {
+                CheckDisposedOrStarted();
+                _settings._quicConnectCallback = value;
             }
         }
 
