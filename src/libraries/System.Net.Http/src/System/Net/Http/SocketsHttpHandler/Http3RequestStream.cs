@@ -25,8 +25,8 @@ namespace System.Net.Http
         private Http3Connection _connection;
         private long _streamId = -1; // A stream does not have an ID until the first I/O against it. This gets set almost immediately following construction.
         private QuicStream _stream;
+        private Stream _ioStream;
         private ArrayBuffer _sendBuffer;
-        private readonly ReadOnlyMemory<byte>[] _gatheredSendBuffer = new ReadOnlyMemory<byte>[2];
         private ArrayBuffer _recvBuffer;
         private TaskCompletionSource<bool>? _expect100ContinueCompletionSource; // True indicates we should send content (e.g. received 100 Continue).
         private bool _disposed;
@@ -70,6 +70,7 @@ namespace System.Net.Http
             _request = request;
             _connection = connection;
             _stream = stream;
+            _ioStream = stream;
             _sendBuffer = new ArrayBuffer(initialSize: 64, usePool: true);
             _recvBuffer = new ArrayBuffer(initialSize: 64, usePool: true);
 
@@ -86,6 +87,9 @@ namespace System.Net.Http
             {
                 _disposed = true;
                 AbortStream();
+                // Disposing QuicStream is crucial for stream limits, connection closure etc.
+                // It can handle multiple disposes, so dispose both streams even if the wrapper probably already disposed the QuicStream.
+                _ioStream.Dispose();
                 _stream.Dispose();
                 DisposeSyncHelper();
             }
@@ -97,6 +101,9 @@ namespace System.Net.Http
             {
                 _disposed = true;
                 AbortStream();
+                // Disposing QuicStream is crucial for stream limits, connection closure etc.
+                // It can handle multiple disposes, so dispose both streams even if the wrapper probably already disposed the QuicStream.
+                await _ioStream.DisposeAsync().ConfigureAwait(false);
                 await _stream.DisposeAsync().ConfigureAwait(false);
                 DisposeSyncHelper();
             }
@@ -118,6 +125,12 @@ namespace System.Net.Http
             // Dispose() might be called concurrently with GoAway(), we need to make sure to not Dispose/Cancel the CTS concurrently.
             using CancellationTokenSource? cts = Interlocked.Exchange(ref _goawayCancellationSource, null);
             cts?.Cancel();
+        }
+
+        public void SetWrapperStream(Stream stream)
+        {
+            Debug.Assert(_ioStream == _stream, "Wrapper stream can be set only once.");
+            _ioStream = stream;
         }
 
         public async Task<HttpResponseMessage> SendAsync(CancellationToken cancellationToken)
@@ -433,9 +446,8 @@ namespace System.Net.Http
                     // Because we have a Content-Length, we can write it in a single DATA frame.
                     BufferFrameEnvelope(Http3FrameType.Data, remaining);
 
-                    _gatheredSendBuffer[0] = _sendBuffer.ActiveMemory;
-                    _gatheredSendBuffer[1] = buffer;
-                    await _stream.WriteAsync(_gatheredSendBuffer, cancellationToken).ConfigureAwait(false);
+                    await _ioStream.WriteAsync(_sendBuffer.ActiveMemory, cancellationToken).ConfigureAwait(false);
+                    await _ioStream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
 
                     _sendBuffer.Discard(_sendBuffer.ActiveLength);
 
@@ -444,7 +456,7 @@ namespace System.Net.Http
                 else
                 {
                     // DATA frame already sent, send just the content buffer directly.
-                    await _stream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+                    await _ioStream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
@@ -453,9 +465,8 @@ namespace System.Net.Http
                 // It's up to the HttpContent to give us sufficiently large writes to avoid excessively small DATA frames.
                 BufferFrameEnvelope(Http3FrameType.Data, buffer.Length);
 
-                _gatheredSendBuffer[0] = _sendBuffer.ActiveMemory;
-                _gatheredSendBuffer[1] = buffer;
-                await _stream.WriteAsync(_gatheredSendBuffer, cancellationToken).ConfigureAwait(false);
+                await _ioStream.WriteAsync(_sendBuffer.ActiveMemory, cancellationToken).ConfigureAwait(false);
+                await _ioStream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
 
                 _sendBuffer.Discard(_sendBuffer.ActiveLength);
             }
@@ -463,10 +474,19 @@ namespace System.Net.Http
 
         private async ValueTask FlushSendBufferAsync(bool endStream, CancellationToken cancellationToken)
         {
-            await _stream.WriteAsync(_sendBuffer.ActiveMemory, endStream, cancellationToken).ConfigureAwait(false);
+            if (endStream)
+            {
+                _sendBuffer.EnsureAvailableSpace(4);
+                _sendBuffer.AvailableSpan[0] = 0xBA;
+                _sendBuffer.AvailableSpan[1] = 0xAD;
+                _sendBuffer.AvailableSpan[2] = 0xBE;
+                _sendBuffer.AvailableSpan[3] = 0xEF;
+                _sendBuffer.Commit(4);
+            }
+            await _ioStream.WriteAsync(_sendBuffer.ActiveMemory, cancellationToken).ConfigureAwait(false);
             _sendBuffer.Discard(_sendBuffer.ActiveLength);
 
-            await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await _ioStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         private async ValueTask DrainContentLength0Frames(CancellationToken cancellationToken)
@@ -759,7 +779,7 @@ namespace System.Net.Http
                 while (!Http3Frame.TryReadIntegerPair(_recvBuffer.ActiveSpan, out frameType, out payloadLength, out bytesRead))
                 {
                     _recvBuffer.EnsureAvailableSpace(VariableLengthIntegerHelper.MaximumEncodedLength * 2);
-                    bytesRead = await _stream.ReadAsync(_recvBuffer.AvailableMemory, cancellationToken).ConfigureAwait(false);
+                    bytesRead = await _ioStream.ReadAsync(_recvBuffer.AvailableMemory, cancellationToken).ConfigureAwait(false);
 
                     if (bytesRead != 0)
                     {
@@ -828,7 +848,7 @@ namespace System.Net.Http
                 {
                     _recvBuffer.EnsureAvailableSpace(1);
 
-                    int bytesRead = await _stream.ReadAsync(_recvBuffer.AvailableMemory, cancellationToken).ConfigureAwait(false);
+                    int bytesRead = await _ioStream.ReadAsync(_recvBuffer.AvailableMemory, cancellationToken).ConfigureAwait(false);
                     if (bytesRead != 0)
                     {
                         _recvBuffer.Commit(bytesRead);
@@ -1029,7 +1049,7 @@ namespace System.Net.Http
                 if (_recvBuffer.ActiveLength == 0)
                 {
                     _recvBuffer.EnsureAvailableSpace(1);
-                    int bytesRead = await _stream.ReadAsync(_recvBuffer.AvailableMemory, cancellationToken).ConfigureAwait(false);
+                    int bytesRead = await _ioStream.ReadAsync(_recvBuffer.AvailableMemory, cancellationToken).ConfigureAwait(false);
 
                     if (bytesRead != 0)
                     {
@@ -1092,7 +1112,7 @@ namespace System.Net.Http
                         // Receive buffer is empty -- bypass it and read directly into user's buffer.
 
                         int copyLen = (int)Math.Min(buffer.Length, _responseDataPayloadRemaining);
-                        int bytesRead = _stream.Read(buffer.Slice(0, copyLen));
+                        int bytesRead = _ioStream.Read(buffer.Slice(0, copyLen));
 
                         if (bytesRead == 0 && buffer.Length != 0)
                         {
@@ -1162,7 +1182,7 @@ namespace System.Net.Http
                         // Receive buffer is empty -- bypass it and read directly into user's buffer.
 
                         int copyLen = (int)Math.Min(buffer.Length, _responseDataPayloadRemaining);
-                        int bytesRead = await _stream.ReadAsync(buffer.Slice(0, copyLen), cancellationToken).ConfigureAwait(false);
+                        int bytesRead = await _ioStream.ReadAsync(buffer.Slice(0, copyLen), cancellationToken).ConfigureAwait(false);
 
                         if (bytesRead == 0 && buffer.Length != 0)
                         {

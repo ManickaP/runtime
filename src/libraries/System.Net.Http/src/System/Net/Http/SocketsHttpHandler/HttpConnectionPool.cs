@@ -1492,7 +1492,7 @@ namespace System.Net.Http
             return _sslOptionsHttp11!;
         }
 
-        private async ValueTask<Stream> ApplyPlaintextFilterAsync(bool async, Stream stream, Version httpVersion, HttpRequestMessage request, CancellationToken cancellationToken)
+        internal async ValueTask<Stream> ApplyPlaintextFilterAsync(bool async, Stream stream, Version httpVersion, HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (Settings._plaintextStreamFilter is null)
             {

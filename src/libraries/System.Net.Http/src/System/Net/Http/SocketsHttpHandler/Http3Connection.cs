@@ -203,6 +203,13 @@ namespace System.Net.Http
                     throw new HttpRequestException(SR.net_http_request_aborted, null, RequestRetryType.RetryOnConnectionFailure);
                 }
 
+                // Apply stream filter if defined and set the wrapped stream to the request to be used for ordinary Stream operations
+                Stream newStream = await _pool.ApplyPlaintextFilterAsync(false, quicStream, HttpVersion.Version30, request, cancellationToken).ConfigureAwait(false);
+                if (newStream != quicStream)
+                {
+                    requestStream.SetWrapperStream(newStream);
+                }
+
                 if (NetEventSource.Log.IsEnabled()) Trace($"Sending request: {request}");
 
                 Task<HttpResponseMessage> responseTask = requestStream.SendAsync(cancellationToken);

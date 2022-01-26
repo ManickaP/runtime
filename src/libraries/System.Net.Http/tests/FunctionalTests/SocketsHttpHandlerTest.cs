@@ -3107,6 +3107,11 @@ namespace System.Net.Http.Functional.Tests
                 // Sync requests are only supported on 1.x
                 return;
             }
+            if (!useSsl && UseVersion > HttpVersion.Version20)
+            {
+                // Plaintext requests are only supported until 2.0
+                return;
+            }
 
             GenericLoopbackOptions options = new GenericLoopbackOptions() { UseSsl = useSsl };
             await LoopbackServerFactory.CreateClientAndServerAsync(
@@ -3150,6 +3155,12 @@ namespace System.Net.Http.Functional.Tests
         [InlineData(false)]
         public async Task PlaintextStreamFilter_SimpleDelegatingStream_Success(bool useSsl)
         {
+            if (!useSsl && UseVersion > HttpVersion.Version20)
+            {
+                // Plaintext requests are only supported until 2.0
+                return;
+            }
+
             GenericLoopbackOptions options = new GenericLoopbackOptions() { UseSsl = useSsl };
             await LoopbackServerFactory.CreateClientAndServerAsync(
                 async uri =>
@@ -3188,6 +3199,12 @@ namespace System.Net.Http.Functional.Tests
         [InlineData(false)]
         public async Task PlaintextStreamFilter_ConnectionPrefix_Success(bool useSsl)
         {
+            if (UseVersion > HttpVersion.Version20)
+            {
+                // This test uses SslStream over a socket on the server side, thus is not compatible with QUIC.
+                return;
+            }
+
             byte[] RequestPrefix = Encoding.UTF8.GetBytes("request prefix\r\n");
             byte[] ResponsePrefix = Encoding.UTF8.GetBytes("response prefix\r\n");
 
@@ -3268,6 +3285,12 @@ namespace System.Net.Http.Functional.Tests
         [InlineData(false)]
         public async Task PlaintextStreamFilter_ExceptionDuringCallback_ThrowsHttpRequestExceptionWithInnerException(bool useSsl)
         {
+            if (!useSsl && UseVersion > HttpVersion.Version20)
+            {
+                // Plaintext requests are only supported until 2.0
+                return;
+            }
+
             Exception e = new Exception("hello!");
 
             GenericLoopbackOptions options = new GenericLoopbackOptions() { UseSsl = useSsl };
@@ -3306,6 +3329,12 @@ namespace System.Net.Http.Functional.Tests
         [InlineData(false)]
         public async Task PlaintextStreamFilter_ReturnsNull_ThrowsHttpRequestException(bool useSsl)
         {
+            if (!useSsl && UseVersion > HttpVersion.Version20)
+            {
+                // Plaintext requests are only supported until 2.0
+                return;
+            }
+
             GenericLoopbackOptions options = new GenericLoopbackOptions() { UseSsl = useSsl };
             await LoopbackServerFactory.CreateClientAndServerAsync(
                 async uri =>
@@ -3444,6 +3473,15 @@ namespace System.Net.Http.Functional.Tests
     {
         public SocketsHttpHandlerTest_PlaintextStreamFilter_Http2(ITestOutputHelper output) : base(output) { }
         protected override Version UseVersion => HttpVersion.Version20;
+    }
+
+    [ConditionalClass(typeof(HttpClientHandlerTestBase), nameof(IsMsQuicSupported))]
+    [Collection(nameof(DisableParallelization))]
+    public sealed class SocketsHttpHandlerTest_PlaintextStreamFilter_Http3_MsQuic : SocketsHttpHandlerTest_PlaintextStreamFilter
+    {
+        public SocketsHttpHandlerTest_PlaintextStreamFilter_Http3_MsQuic(ITestOutputHelper output) : base(output) { }
+        protected override Version UseVersion => HttpVersion.Version30;
+        protected override QuicImplementationProvider UseQuicImplementationProvider => QuicImplementationProviders.MsQuic;
     }
 
     [ConditionalClass(typeof(PlatformDetection), nameof(PlatformDetection.SupportsAlpn))]

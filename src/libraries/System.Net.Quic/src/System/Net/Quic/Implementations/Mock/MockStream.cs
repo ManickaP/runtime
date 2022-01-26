@@ -124,7 +124,20 @@ namespace System.Net.Quic.Implementations.Mock
 
         internal override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            return WriteAsync(buffer, endStream: false, cancellationToken);
+            bool endStream = false;
+            if (buffer.Length > 4)
+            {
+                var end = buffer.Slice(buffer.Length - 4).Span;
+                if (end[0] == 0xBA &&
+                    end[1] == 0xAD &&
+                    end[2] == 0xBE &&
+                    end[3] == 0xEF)
+                {
+                    endStream = true;
+                    buffer = buffer.Slice(0, buffer.Length - 4);
+                }
+            }
+            return WriteAsync(buffer, endStream, cancellationToken);
         }
 
         internal override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool endStream, CancellationToken cancellationToken = default)
