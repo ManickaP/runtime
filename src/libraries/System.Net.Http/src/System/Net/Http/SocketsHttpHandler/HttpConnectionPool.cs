@@ -864,7 +864,7 @@ namespace System.Net.Http
                 QuicConnection quicConnection;
                 try
                 {
-                    quicConnection = await ConnectHelper.ConnectQuicAsync(request, Settings._quicImplementationProvider ?? QuicImplementationProviders.Default, new DnsEndPoint(authority.IdnHost, authority.Port), _sslOptionsHttp3!, cancellationToken).ConfigureAwait(false);
+                    quicConnection = await ConnectToQuicHostAsync(authority.IdnHost, authority.Port, request, cancellationToken).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -1406,7 +1406,7 @@ namespace System.Net.Http
                         Trace($"{nameof(SocketsHttpHandler.ConnectCallback)} completing asynchronously for a synchronous request.");
                     }
 
-                    stream = await streamTask.ConfigureAwait(false) ?? throw new HttpRequestException(SR.net_http_null_from_connect_callback);
+                    stream = await streamTask.ConfigureAwait(false) ?? throw new HttpRequestException(SR.Format(SR.net_http_null_from_connect_callback, nameof(SocketsHttpHandler.ConnectCallback)));
                 }
                 else
                 {
@@ -1433,6 +1433,35 @@ namespace System.Net.Http
             catch (Exception ex)
             {
                 socket?.Dispose();
+                throw ex is OperationCanceledException oce && oce.CancellationToken == cancellationToken ?
+                    CancellationHelper.CreateOperationCanceledException(innerException: null, cancellationToken) :
+                    ConnectHelper.CreateWrappedException(ex, endPoint.Host, endPoint.Port, cancellationToken);
+            }
+        }
+
+        [SupportedOSPlatform("windows")]
+        [SupportedOSPlatform("linux")]
+        [SupportedOSPlatform("macos")]
+        private async ValueTask<QuicConnection> ConnectToQuicHostAsync(string host, int port, HttpRequestMessage initialRequest, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var endPoint = new DnsEndPoint(host, port);
+            try
+            {
+                // If a QuicConnectCallback was supplied, use that to establish the connection.
+                if (Settings._quicConnectCallback != null)
+                {
+                    return await Settings._quicConnectCallback(new SocketsHttpConnectionContext(endPoint, initialRequest), cancellationToken).ConfigureAwait(false);
+                }
+                // Otherwise, create and connect a QUIC connection using default settings.
+                else
+                {
+                    return await ConnectHelper.ConnectQuicAsync(initialRequest, Settings._quicImplementationProvider ?? QuicImplementationProviders.Default, endPoint, _sslOptionsHttp3!, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
                 throw ex is OperationCanceledException oce && oce.CancellationToken == cancellationToken ?
                     CancellationHelper.CreateOperationCanceledException(innerException: null, cancellationToken) :
                     ConnectHelper.CreateWrappedException(ex, endPoint.Host, endPoint.Port, cancellationToken);
