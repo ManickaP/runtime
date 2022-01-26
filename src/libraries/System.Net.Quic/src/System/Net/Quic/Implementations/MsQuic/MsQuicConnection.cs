@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Security.Authentication;
@@ -617,6 +618,18 @@ namespace System.Net.Quic.Implementations.MsQuic
         {
             Debug.Assert(!Monitor.IsEntered(_state));
             return MsQuicParameterHelpers.GetUShortParam(MsQuicApi.Api, _state.Handle, QUIC_PARAM_LEVEL.CONNECTION, (uint)QUIC_PARAM_CONN.LOCAL_BIDI_STREAM_COUNT);
+        }
+
+        internal override unsafe void SetRawParameters(int parameter, ReadOnlySpan<byte> data)
+        {
+            Debug.Assert(!Monitor.IsEntered(_state));
+
+            fixed (byte* dataPtr = data)
+            {
+                QuicExceptionHelpers.ThrowIfFailed(
+                    MsQuicApi.Api.SetParamDelegate(_state.Handle, QUIC_PARAM_LEVEL.CONNECTION, (uint)parameter, (uint)data.Length, dataPtr),
+                    "Could not set custom parameter.");
+            }
         }
 
         internal override ValueTask ConnectAsync(CancellationToken cancellationToken = default)

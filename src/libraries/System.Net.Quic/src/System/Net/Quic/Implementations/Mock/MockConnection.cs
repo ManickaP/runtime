@@ -277,6 +277,11 @@ namespace System.Net.Quic.Implementations.Mock
             return streamLimit.Bidirectional.AvailableCount;
         }
 
+        internal override unsafe void SetRawParameters(int parameter, ReadOnlySpan<byte> data)
+        {
+            throw new NotImplementedException();
+        }
+
         internal override async ValueTask<QuicStreamProvider> AcceptStreamAsync(CancellationToken cancellationToken = default)
         {
             CheckDisposed();

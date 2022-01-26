@@ -2802,9 +2802,19 @@ namespace System.Net.Http.Functional.Tests
                                 RemoteCertificateValidationCallback = delegate { return true; }
                             }
                         });
+                        SetLocalIP(quicConnection, new IPAddress(new byte[] { 127, 0, 0, 1 }));
                         await quicConnection.ConnectAsync(token).ConfigureAwait(false);
                         return quicConnection;
                     };
+
+                    void SetLocalIP(QuicConnection quicConnection, IPAddress address)
+                    {
+                        Span<byte> data = stackalloc byte[28];
+                        data[0] = (byte)((int)address.AddressFamily >> 0);
+                        data[1] = (byte)((int)address.AddressFamily >> 8);
+                        address.GetAddressBytes().CopyTo(data.Slice(4));
+                        quicConnection.SetRawParameters(1 /*QUIC_PARAM_CONN_LOCAL_ADDRESS*/, data);
+                    }
 
                     using HttpClient client = CreateHttpClient(handler);
 
@@ -3077,7 +3087,6 @@ namespace System.Net.Http.Functional.Tests
         public SocketsHttpHandlerTest_QuicConnectCallback_Http3_MsQuic(ITestOutputHelper output) : base(output) { }
         protected override QuicImplementationProvider UseQuicImplementationProvider => QuicImplementationProviders.MsQuic;
     }
-
 
     public abstract class SocketsHttpHandlerTest_PlaintextStreamFilter : HttpClientHandlerTestBase
     {

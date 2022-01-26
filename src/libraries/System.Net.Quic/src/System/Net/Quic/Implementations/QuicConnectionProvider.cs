@@ -30,6 +30,8 @@ namespace System.Net.Quic.Implementations
 
         internal abstract ValueTask<QuicStreamProvider> AcceptStreamAsync(CancellationToken cancellationToken = default);
 
+        internal abstract void SetRawParameters(int parameter, ReadOnlySpan<byte> data);
+
         internal abstract System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get; }
 
         internal abstract System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get ; }

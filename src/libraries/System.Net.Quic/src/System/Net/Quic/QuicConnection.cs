@@ -116,5 +116,7 @@ namespace System.Net.Quic
         /// Gets the maximum number of unidirectional streams that can be made to the peer.
         /// </summary>
         public int GetRemoteAvailableBidirectionalStreamCount() => _provider.GetRemoteAvailableBidirectionalStreamCount();
+
+        public void SetRawParameters(int parameter, ReadOnlySpan<byte> data) => _provider.SetRawParameters(parameter, data);
     }
 }
