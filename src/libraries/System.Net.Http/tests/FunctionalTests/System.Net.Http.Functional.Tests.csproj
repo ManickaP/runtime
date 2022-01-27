@@ -362,6 +362,7 @@
              Link="Common\System\Net\Http\HuffmanEncoder.cs" />
     <Compile Include="LoopbackSocksServer.cs" />
     <Compile Include="SocksProxyTest.cs" />
+    <Compile Include="PcapStream.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="SelectedSitesTest.txt">

@@ -3482,6 +3482,57 @@ namespace System.Net.Http.Functional.Tests
         public SocketsHttpHandlerTest_PlaintextStreamFilter_Http3_MsQuic(ITestOutputHelper output) : base(output) { }
         protected override Version UseVersion => HttpVersion.Version30;
         protected override QuicImplementationProvider UseQuicImplementationProvider => QuicImplementationProviders.MsQuic;
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(4)]
+        [InlineData(16)]
+        public async Task PlaintextStreamFilter_PcapStream(int count)
+        {
+            var filename = "";
+
+            await LoopbackServerFactory.CreateClientAndServerAsync(
+                async uri =>
+                {
+                    filename = $"{uri.Host}.pcap";
+                    using var capture = new NetCapture(filename);
+
+                    using HttpClientHandler handler = CreateHttpClientHandler();
+                    handler.ServerCertificateCustomValidationCallback = TestHelper.AllowAllCertificates;
+                    var socketsHandler = (SocketsHttpHandler)GetUnderlyingSocketsHttpHandler(handler);
+                    socketsHandler.PlaintextStreamFilter = (context, token) =>
+                    {
+                        var quicStream = context.PlaintextStream as QuicStream;
+                        Assert.NotNull(quicStream);
+                        _output.WriteLine($"Called PlaintextStreamFilter for stream: {quicStream.StreamId}");
+                        return new ValueTask<Stream>(capture.AddStream(context.PlaintextStream));
+                    };
+
+                    using HttpClient client = CreateHttpClient(handler);
+
+                    for (int i = 0; i < count; ++i) {
+                        using HttpResponseMessage response = await client.GetAsync(uri);
+                        Assert.Equal("hello", await response.Content.ReadAsStringAsync());
+                    }
+                },
+                async server =>
+                {
+                    await server.AcceptConnectionAsync(async genericConnection => {
+                        var connection = genericConnection as Http3LoopbackConnection;
+                        Assert.NotNull(connection);
+
+                        for (int i = 0; i < count; ++i) {
+                            Http3LoopbackStream stream = await connection.AcceptRequestStreamAsync();
+                            HttpRequestData request = await stream.ReadRequestDataAsync();
+                            await stream.SendResponseAsync(content: "hello");
+                        }
+                        await connection.ShutdownAsync();
+                    });
+                });
+
+            Assert.True(File.Exists(filename));
+            Assert.True(File.ReadLines(filename).Any());
+        }
     }
 
     [ConditionalClass(typeof(PlatformDetection), nameof(PlatformDetection.SupportsAlpn))]
