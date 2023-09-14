@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.DotNet.XUnitExtensions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -314,11 +315,16 @@ namespace System.Net.Quic.Tests
                 _ => Task.CompletedTask);
         }
 
-        [Theory]
+        [ConditionalTheory()]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Connect_PeerCertificateDisposed(bool useGetter)
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed implementation with does not support certificates with mock TLS.");
+            }
+
             await using QuicListener listener = await CreateQuicListener();
 
             QuicClientConnectionOptions clientOptions = CreateQuicClientOptions(listener.LocalEndPoint);
