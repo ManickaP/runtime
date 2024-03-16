@@ -6,6 +6,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.Quic;
 using static System.Net.Quic.MsQuicHelpers;
@@ -120,6 +121,13 @@ public sealed partial class QuicStream
     private long _id = -1;
     private readonly QuicStreamType _type;
 
+    private readonly Channel<QUIC_STREAM_EVENT> _incomingEvents = Channel.CreateUnbounded<QUIC_STREAM_EVENT>(new UnboundedChannelOptions()
+    {
+        AllowSynchronousContinuations = false,
+        SingleReader = true,
+        SingleWriter = true
+    });
+
     /// <summary>
     /// Stream id, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#name-stream-types-and-identifier" />.
     /// </summary>
@@ -186,6 +194,7 @@ public sealed partial class QuicStream
             _receiveTcs.TrySetResult(final: true);
         }
         _type = type;
+        ProcessEvents();
     }
 
     /// <summary>
@@ -224,6 +233,7 @@ public sealed partial class QuicStream
         _id = (long)GetMsQuicParameter<ulong>(_handle, QUIC_PARAM_STREAM_ID);
         _type = flags.HasFlag(QUIC_STREAM_OPEN_FLAGS.UNIDIRECTIONAL) ? QuicStreamType.Unidirectional : QuicStreamType.Bidirectional;
         _startedTcs.TrySetResult();
+        ProcessEvents();
     }
 
     /// <summary>
@@ -638,6 +648,36 @@ public sealed partial class QuicStream
             _ => QUIC_STATUS_SUCCESS
         };
 
+    private async void ProcessEvents()
+    {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+
+        while (true)
+        {
+            try
+            {
+                QUIC_STREAM_EVENT streamEvent = await _incomingEvents.Reader.ReadAsync().ConfigureAwait(false);
+                // Process the event.
+                if (NetEventSource.Log.IsEnabled())
+                {
+                    NetEventSource.Info(this, $"{this} Processing event {streamEvent.Type} {streamEvent}");
+                }
+                HandleStreamEvent(ref streamEvent);
+            }
+            catch (ChannelClosedException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                if (NetEventSource.Log.IsEnabled())
+                {
+                    NetEventSource.Error(this, $"{this} Processing event failed {ex}");
+                }
+            }
+        }
+    }
+
 #pragma warning disable CS3016
     [UnmanagedCallersOnly(CallConvs = new Type[] { typeof(CallConvCdecl) })]
 #pragma warning restore CS3016
@@ -662,7 +702,13 @@ public sealed partial class QuicStream
             {
                 NetEventSource.Info(instance, $"{instance} Received event {streamEvent->Type} {streamEvent->ToString()}");
             }
-            return instance.HandleStreamEvent(ref *streamEvent);
+            if (streamEvent->Type == QUIC_STREAM_EVENT_TYPE.RECEIVE)
+            {
+                return instance.HandleStreamEvent(ref *streamEvent);
+            }
+            bool written = instance._incomingEvents.Writer.TryWrite(*streamEvent);
+            Debug.Assert(written);
+            return QUIC_STATUS_SUCCESS;
         }
         catch (Exception ex)
         {
@@ -714,6 +760,7 @@ public sealed partial class QuicStream
         }
         Debug.Assert(_startedTcs.IsCompleted);
         _handle.Dispose();
+        _incomingEvents.Writer.TryComplete();
 
         // TODO: memory leak if not disposed
         _sendBuffers.Dispose();
