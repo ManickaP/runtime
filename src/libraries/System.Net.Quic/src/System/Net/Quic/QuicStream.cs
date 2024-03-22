@@ -121,13 +121,6 @@ public sealed partial class QuicStream
     private long _id = -1;
     private readonly QuicStreamType _type;
 
-    private readonly Channel<QUIC_STREAM_EVENT> _incomingEvents = Channel.CreateUnbounded<QUIC_STREAM_EVENT>(new UnboundedChannelOptions()
-    {
-        AllowSynchronousContinuations = false,
-        SingleReader = true,
-        SingleWriter = true
-    });
-
     /// <summary>
     /// Stream id, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#name-stream-types-and-identifier" />.
     /// </summary>
@@ -158,14 +151,18 @@ public sealed partial class QuicStream
     /// <inheritdoc />
     public override string ToString() => _handle.ToString();
 
+    private readonly QuicConnection _qc;
+
     /// <summary>
     /// Initializes a new instance of an outbound <see cref="QuicStream" />.
     /// </summary>
     /// <param name="connectionHandle"><see cref="QuicConnection"/> safe handle, used to increment/decrement reference count with each associated stream.</param>
     /// <param name="type">The type of the stream to open.</param>
     /// <param name="defaultErrorCode">Error code used when the stream needs to abort read or write side of the stream internally.</param>
-    internal unsafe QuicStream(MsQuicContextSafeHandle connectionHandle, QuicStreamType type, long defaultErrorCode)
+    /// <param name="qc"></param>
+    internal unsafe QuicStream(QuicConnection qc, MsQuicContextSafeHandle connectionHandle, QuicStreamType type, long defaultErrorCode)
     {
+        _qc = qc;
         GCHandle context = GCHandle.Alloc(this, GCHandleType.Weak);
         try
         {
@@ -194,7 +191,6 @@ public sealed partial class QuicStream
             _receiveTcs.TrySetResult(final: true);
         }
         _type = type;
-        ProcessEvents();
     }
 
     /// <summary>
@@ -204,8 +200,10 @@ public sealed partial class QuicStream
     /// <param name="handle">Native handle.</param>
     /// <param name="flags">Related data from the PEER_STREAM_STARTED connection event.</param>
     /// <param name="defaultErrorCode">Error code used when the stream needs to abort read or write side of the stream internally.</param>
-    internal unsafe QuicStream(MsQuicContextSafeHandle connectionHandle, QUIC_HANDLE* handle, QUIC_STREAM_OPEN_FLAGS flags, long defaultErrorCode)
+    /// <param name="qc"></param>
+    internal unsafe QuicStream(QuicConnection qc, MsQuicContextSafeHandle connectionHandle, QUIC_HANDLE* handle, QUIC_STREAM_OPEN_FLAGS flags, long defaultErrorCode)
     {
+        _qc = qc;
         GCHandle context = GCHandle.Alloc(this, GCHandleType.Weak);
         try
         {
@@ -233,7 +231,6 @@ public sealed partial class QuicStream
         _id = (long)GetMsQuicParameter<ulong>(_handle, QUIC_PARAM_STREAM_ID);
         _type = flags.HasFlag(QUIC_STREAM_OPEN_FLAGS.UNIDIRECTIONAL) ? QuicStreamType.Unidirectional : QuicStreamType.Bidirectional;
         _startedTcs.TrySetResult();
-        ProcessEvents();
     }
 
     /// <summary>
@@ -633,7 +630,7 @@ public sealed partial class QuicStream
         return QUIC_STATUS_SUCCESS;
     }
 
-    private unsafe int HandleStreamEvent(ref QUIC_STREAM_EVENT streamEvent)
+    internal unsafe int HandleStreamEvent(ref QUIC_STREAM_EVENT streamEvent)
         => streamEvent.Type switch
         {
             QUIC_STREAM_EVENT_TYPE.START_COMPLETE => HandleEventStartComplete(ref streamEvent.START_COMPLETE),
@@ -647,36 +644,6 @@ public sealed partial class QuicStream
             QUIC_STREAM_EVENT_TYPE.PEER_ACCEPTED => HandleEventPeerAccepted(),
             _ => QUIC_STATUS_SUCCESS
         };
-
-    private async void ProcessEvents()
-    {
-        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
-
-        while (true)
-        {
-            try
-            {
-                QUIC_STREAM_EVENT streamEvent = await _incomingEvents.Reader.ReadAsync().ConfigureAwait(false);
-                // Process the event.
-                if (NetEventSource.Log.IsEnabled())
-                {
-                    NetEventSource.Info(this, $"{this} Processing event {streamEvent.Type} {streamEvent}");
-                }
-                HandleStreamEvent(ref streamEvent);
-            }
-            catch (ChannelClosedException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                if (NetEventSource.Log.IsEnabled())
-                {
-                    NetEventSource.Error(this, $"{this} Processing event failed {ex}");
-                }
-            }
-        }
-    }
 
 #pragma warning disable CS3016
     [UnmanagedCallersOnly(CallConvs = new Type[] { typeof(CallConvCdecl) })]
@@ -706,7 +673,7 @@ public sealed partial class QuicStream
             {
                 return instance.HandleStreamEvent(ref *streamEvent);
             }
-            bool written = instance._incomingEvents.Writer.TryWrite(*streamEvent);
+            bool written = instance._qc._streamEvents.Writer.TryWrite((*streamEvent, instance));
             Debug.Assert(written);
             return QUIC_STATUS_SUCCESS;
         }
@@ -760,7 +727,6 @@ public sealed partial class QuicStream
         }
         Debug.Assert(_startedTcs.IsCompleted);
         _handle.Dispose();
-        _incomingEvents.Writer.TryComplete();
 
         // TODO: memory leak if not disposed
         _sendBuffers.Dispose();

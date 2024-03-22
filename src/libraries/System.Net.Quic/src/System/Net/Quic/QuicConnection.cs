@@ -140,6 +140,44 @@ public sealed partial class QuicConnection : IAsyncDisposable
         SingleWriter = true
     });
 
+    internal readonly Channel<(QUIC_STREAM_EVENT, QuicStream)> _streamEvents = Channel.CreateUnbounded<(QUIC_STREAM_EVENT, QuicStream)>(new UnboundedChannelOptions()
+    {
+        AllowSynchronousContinuations = false,
+        SingleReader = true,
+        SingleWriter = true
+    });
+
+    private async void ProcessEvents()
+    {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+
+        while (true)
+        {
+            try
+            {
+                (QUIC_STREAM_EVENT streamEvent, QuicStream stream) = await _streamEvents.Reader.ReadAsync().ConfigureAwait(false);
+                // Process the event.
+                if (NetEventSource.Log.IsEnabled())
+                {
+                    NetEventSource.Info(this, $"{this} {stream} Processing event {streamEvent.Type} {streamEvent}");
+                }
+                stream.HandleStreamEvent(ref streamEvent);
+            }
+            catch (ChannelClosedException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                if (NetEventSource.Log.IsEnabled())
+                {
+                    NetEventSource.Error(this, $"{this} Processing event failed {ex}");
+                }
+            }
+        }
+    }
+
+
     /// <summary>
     /// Holds options to validate peer certificate.
     /// Set up either in <see cref="FinishHandshakeAsync"/> for an inbound connection or in <see cref="FinishConnectAsync"/> for an outbound.
@@ -253,6 +291,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
             context.Free();
             throw;
         }
+        ProcessEvents();
 
 #if DEBUG
         _tlsSecret = MsQuicTlsSecret.Create(_handle);
@@ -284,6 +323,8 @@ public sealed partial class QuicConnection : IAsyncDisposable
 
         _remoteEndPoint = MsQuicHelpers.QuicAddrToIPEndPoint(info->RemoteAddress);
         _localEndPoint = MsQuicHelpers.QuicAddrToIPEndPoint(info->LocalAddress);
+        ProcessEvents();
+
 #if DEBUG
         _tlsSecret = MsQuicTlsSecret.Create(_handle);
 #endif
@@ -416,7 +457,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
         QuicStream? stream = null;
         try
         {
-            stream = new QuicStream(_handle, type, _defaultStreamErrorCode);
+            stream = new QuicStream(this, _handle, type, _defaultStreamErrorCode);
             await stream.StartAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -554,7 +595,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
     }
     private unsafe int HandleEventPeerStreamStarted(ref PEER_STREAM_STARTED_DATA data)
     {
-        QuicStream stream = new QuicStream(_handle, data.Stream, data.Flags, _defaultStreamErrorCode);
+        QuicStream stream = new QuicStream(this, _handle, data.Stream, data.Flags, _defaultStreamErrorCode);
         if (!_acceptQueue.Writer.TryWrite(stream))
         {
             if (NetEventSource.Log.IsEnabled())
@@ -691,5 +732,6 @@ public sealed partial class QuicConnection : IAsyncDisposable
         {
             await stream.DisposeAsync().ConfigureAwait(false);
         }
+        _streamEvents.Writer.TryComplete();
     }
 }
