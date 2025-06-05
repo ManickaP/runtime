@@ -713,9 +713,7 @@ namespace System.Net.Http
         {
             foreach (char c in headerString)
             {
-                // See https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5-5:
-                // "Field values containing CR, LF, or NUL characters are invalid and dangerous"
-                if (c <= 0 || c > 255 || c == '\r' || c == '\n')
+                if (c <= 0 || c > 255)
                 {
                     return false;
                 }
