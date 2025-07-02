@@ -51,6 +51,10 @@ internal sealed class MsQuicTlsSecret : IDisposable
 
     public unsafe void WriteSecret()
     {
+         if (NetEventSource.Log.IsEnabled())
+        {
+            NetEventSource.Info(null, $"WriteSecret: {_tlsSecrets->IsSet.ClientRandom}, {_tlsSecrets->IsSet.ClientHandshakeTrafficSecret}, {_tlsSecrets->IsSet.ServerHandshakeTrafficSecret}, {_tlsSecrets->IsSet.ClientTrafficSecret0}, {_tlsSecrets->IsSet.ServerTrafficSecret0}, {_tlsSecrets->IsSet.ClientEarlyTrafficSecret}");
+        }
         ReadOnlySpan<byte> clientRandom = _tlsSecrets->IsSet.ClientRandom != 0
             ? new ReadOnlySpan<byte>(_tlsSecrets->ClientRandom, 32)
             : ReadOnlySpan<byte>.Empty;

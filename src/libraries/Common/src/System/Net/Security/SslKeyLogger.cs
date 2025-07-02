@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Text;
 
 internal static class SslKeyLogger
 {
@@ -81,6 +82,7 @@ internal static class SslKeyLogger
             serverTrafficSecret0.IsEmpty &&
             clientEarlyTrafficSecret.IsEmpty))
         {
+            Console.WriteLine($"{clientRandom.IsEmpty} {clientHandshakeTrafficSecret.IsEmpty} {serverHandshakeTrafficSecret.IsEmpty} {clientTrafficSecret0.IsEmpty} {serverTrafficSecret0.IsEmpty} {clientEarlyTrafficSecret.IsEmpty}");
             return;
         }
 
@@ -103,8 +105,10 @@ internal static class SslKeyLogger
     {
         if (secret.Length == 0)
         {
+            Console.WriteLine($"{Encoding.UTF8.GetString(labelUtf8)} is empty");
             return;
         }
+        Console.WriteLine($"Writing {Encoding.UTF8.GetString(labelUtf8)} of length {secret.Length}");
 
         // write the secret line in the format {label} {client_random (hex)} {secret (hex)} e.g.
         // SERVER_HANDSHAKE_TRAFFIC_SECRET bae582227f0f46ca663cb8c3d62e68cec38c2b947e7c4a9ec6f4e262b5ed5354 48f6bd5b0c8447d97129c6dad080f34c7f9f11ade8eeabb011f33811543411d7ab1013b1374bcd81bfface6a2deef539

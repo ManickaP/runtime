@@ -7,6 +7,7 @@ using System.Net.Security;
 using System.Threading.Tasks;
 using Microsoft.DotNet.RemoteExecutor;
 using Microsoft.DotNet.XUnitExtensions;
+using TestUtilities;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -24,6 +25,7 @@ namespace System.Net.Quic.Tests
         [InlineData(false)]
         public async Task SslKeyLogFile_IsCreatedAndFilled(bool enabledBySwitch)
         {
+            var _ = new TestEventListener(Console.Out, "Private.InternalDiagnostics.System.Net.Quic");
             if (PlatformDetection.IsDebugLibrary(typeof(QuicConnection).Assembly) && !enabledBySwitch)
             {
                 // AppCtxSwitch is not checked for SSLKEYLOGFILE in Debug builds, the same code path
@@ -37,6 +39,7 @@ namespace System.Net.Quic.Tests
 
             await RemoteExecutor.Invoke(async (enabledBySwitch) =>
             {
+                var _ = new TestEventListener(Console.Out, "Private.InternalDiagnostics.System.Net.Quic");
                 if (bool.Parse(enabledBySwitch))
                 {
                     AppContext.SetSwitch("System.Net.EnableSslKeyLogging", true);
