@@ -717,6 +717,143 @@ namespace System.Net.Http.Functional.Tests
             });
         }
 
+        [Fact]
+        [SkipOnPlatform(TestPlatforms.Browser, "CookieContainer is not supported on Browser")]
+        public async Task GetAsync_RequestCookieContainer_OverridesHandler()
+        {
+            var cookies = new Cookie[]
+            {
+                new Cookie("hello", "world"),
+                new Cookie("foo", "bar"),
+                new Cookie("ABC", "123")
+            };
+
+            await LoopbackServerFactory.CreateClientAndServerAsync(
+                async uri =>
+                {
+                    HttpClientHandler handler = CreateHttpClientHandler();
+
+                    var cookieContainer = new CookieContainer();
+                    cookieContainer.Add(uri, new Cookie("container", "hello world"));
+                    handler.CookieContainer = cookieContainer;
+
+                    var requestCookies = new CookieContainer();
+                    foreach (var c in cookies)
+                    {
+                        requestCookies.Add(uri, c);
+                    }
+
+                    using (HttpClient client = CreateHttpClient(handler))
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                        request.Options.Set(new HttpRequestOptionsKey<CookieContainer>(nameof(CookieContainer)), requestCookies);
+                        request.Version = UseVersion;
+                        request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                        await client.SendAsync(request);
+                    }
+                },
+                async server =>
+                {
+                    HttpRequestData requestData = await server.HandleRequestAsync();
+                    string expectedHeaderValue = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}").ToArray());
+                    Assert.Equal(expectedHeaderValue, requestData.GetSingleHeaderValue("Cookie"));
+                });
+        }
+
+        [Fact]
+        [SkipOnPlatform(TestPlatforms.Browser, "CookieContainer is not supported on Browser")]
+        public async Task GetAsync_RequestCookieContainer_ReceivesServerCookies()
+        {
+            var cookies = new Cookie[]
+            {
+                new Cookie("hello", "world"),
+                new Cookie("foo", "bar"),
+                new Cookie("ABC", "123")
+            };
+
+            await LoopbackServerFactory.CreateClientAndServerAsync(
+                async uri =>
+                {
+                    HttpClientHandler handler = CreateHttpClientHandler();
+
+                    var requestCookies = new CookieContainer();
+
+                    using (HttpClient client = CreateHttpClient(handler))
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                        request.Options.Set(new HttpRequestOptionsKey<CookieContainer>(nameof(CookieContainer)), requestCookies);
+                        request.Version = UseVersion;
+                        request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                        await client.SendAsync(request);
+                        Assert.Equal(cookies.Length, requestCookies.Count);
+                        var uriCookies = requestCookies.GetCookies(uri);
+                        Assert.Equal(cookies.Length, uriCookies.Count);
+                        foreach (var c in cookies)
+                        {
+                            Assert.Equal(c.Value, uriCookies[c.Name].Value);
+                        }
+                    }
+                },
+                async server =>
+                {
+                    var headerData = cookies.Select(c => new HttpHeaderData("Set-Cookie", GetCookieHeaderValue(c.Name, c.Value))).ToArray();
+                    HttpRequestData requestData = await server.HandleRequestAsync(HttpStatusCode.OK, headerData, s_simpleContent);
+                    Assert.Equal(0, requestData.GetHeaderValueCount("Cookie"));
+                });
+        }
+
+        [Fact]
+        [SkipOnPlatform(TestPlatforms.Browser, "CookieContainer is not supported on Browser")]
+        public async Task GetAsync_RequestCookieContainer_ReceivesAndSendsServerCookies()
+        {
+            var cookies = new Cookie[]
+            {
+                new Cookie("hello", "world"),
+                new Cookie("foo", "bar"),
+                new Cookie("ABC", "123")
+            };
+
+            await LoopbackServerFactory.CreateClientAndServerAsync(
+                async uri =>
+                {
+                    HttpClientHandler handler = CreateHttpClientHandler();
+
+                    var requestCookies = new CookieContainer();
+
+                    using (HttpClient client = CreateHttpClient(handler))
+                    {
+                        var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                        request.Options.Set(new HttpRequestOptionsKey<CookieContainer>(nameof(CookieContainer)), requestCookies);
+                        request.Version = UseVersion;
+                        request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                        await client.SendAsync(request);
+                        Assert.Equal(cookies.Length, requestCookies.Count);
+                        var uriCookies = requestCookies.GetCookies(uri);
+                        Assert.Equal(cookies.Length, uriCookies.Count);
+                        foreach (var c in cookies)
+                        {
+                            Assert.Equal(c.Value, uriCookies[c.Name].Value);
+                        }
+
+                        request = new HttpRequestMessage(HttpMethod.Get, uri);
+                        request.Options.Set(new HttpRequestOptionsKey<CookieContainer>(nameof(CookieContainer)), requestCookies);
+                        request.Version = UseVersion;
+                        request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                        await client.SendAsync(request);
+                    }
+                },
+                async server =>
+                {
+                    var headerData = cookies.Select(c => new HttpHeaderData("Set-Cookie", GetCookieHeaderValue(c.Name, c.Value))).ToArray();
+                    HttpRequestData requestData = await server.HandleRequestAsync(HttpStatusCode.OK, headerData, s_simpleContent);
+                    Assert.Equal(0, requestData.GetHeaderValueCount("Cookie"));
+
+                    requestData = await server.HandleRequestAsync();
+                    string expectedHeaderValue = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}").ToArray());
+                    Assert.Equal(expectedHeaderValue, requestData.GetSingleHeaderValue("Cookie"));
+                });
+        }
+
         //
         // MemberData stuff
         //

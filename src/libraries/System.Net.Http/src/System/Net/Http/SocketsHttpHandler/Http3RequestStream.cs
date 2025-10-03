@@ -274,7 +274,7 @@ namespace System.Net.Http
                 // Process any Set-Cookie headers.
                 if (_connection.Pool.Settings._useCookies)
                 {
-                    CookieHelper.ProcessReceivedCookies(_response, _connection.Pool.Settings._cookieContainer!);
+                    CookieHelper.ProcessReceivedCookies(_response, CookieHelper.GetCookieContainer(_request, _connection.Pool.Settings));
                 }
 
                 // To avoid a circular reference (stream->response->content->stream), null out the stream's response.
@@ -723,7 +723,7 @@ namespace System.Net.Http
 
             if (_connection.Pool.Settings._useCookies)
             {
-                string cookiesFromContainer = _connection.Pool.Settings._cookieContainer!.GetCookieHeader(request.RequestUri);
+                string cookiesFromContainer = CookieHelper.GetCookieContainer(request, _connection.Pool.Settings).GetCookieHeader(request.RequestUri);
                 if (cookiesFromContainer != string.Empty)
                 {
                     Encoding? valueEncoding = _connection.Pool.Settings._requestHeaderEncodingSelector?.Invoke(HttpKnownHeaderNames.Cookie, request);

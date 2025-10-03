@@ -364,7 +364,7 @@ namespace System.Net.Http
             string? cookiesFromContainer = null;
             if (_pool.Settings._useCookies)
             {
-                cookiesFromContainer = _pool.Settings._cookieContainer!.GetCookieHeader(request.RequestUri);
+                cookiesFromContainer = CookieHelper.GetCookieContainer(request, _pool.Settings).GetCookieHeader(request.RequestUri);
                 if (cookiesFromContainer == "")
                 {
                     cookiesFromContainer = null;
@@ -836,7 +836,7 @@ namespace System.Net.Http
                 // Process Set-Cookie headers.
                 if (_pool.Settings._useCookies)
                 {
-                    CookieHelper.ProcessReceivedCookies(response, _pool.Settings._cookieContainer!);
+                    CookieHelper.ProcessReceivedCookies(response, CookieHelper.GetCookieContainer(request, _pool.Settings));
                 }
 
                 return response;

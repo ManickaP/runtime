@@ -9,6 +9,13 @@ namespace System.Net.Http
 {
     internal static class CookieHelper
     {
+        private static readonly HttpRequestOptionsKey<CookieContainer> CookieContainerKey = new HttpRequestOptionsKey<CookieContainer>("CookieContainer");
+
+        public static CookieContainer GetCookieContainer(HttpRequestMessage requestMessage, HttpConnectionSettings settings)
+        {
+            return requestMessage.Options.TryGetValue(CookieContainerKey, out var cookieContainer) ? cookieContainer : settings._cookieContainer!;
+        }
+
         public static void ProcessReceivedCookies(HttpResponseMessage response, CookieContainer cookieContainer)
         {
             if (response.Headers.TryGetValues(KnownHeaders.SetCookie.Descriptor, out IEnumerable<string>? values))

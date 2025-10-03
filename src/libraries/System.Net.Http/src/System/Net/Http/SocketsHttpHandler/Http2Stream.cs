@@ -1099,7 +1099,7 @@ namespace System.Net.Http
                 // Process Set-Cookie headers.
                 if (_connection._pool.Settings._useCookies)
                 {
-                    CookieHelper.ProcessReceivedCookies(_response, _connection._pool.Settings._cookieContainer!);
+                    CookieHelper.ProcessReceivedCookies(_response, CookieHelper.GetCookieContainer(_request, _connection._pool.Settings));
                 }
             }
 
