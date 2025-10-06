@@ -29,7 +29,7 @@
     <WasmXHarnessTestsTimeout>01:15:00</WasmXHarnessTestsTimeout>
     <XunitShowProgress Condition="'$(FeatureWasmManagedThreads)' == 'true'">true</XunitShowProgress>
     <!-- Enable diagnostic features. They will add appropriate RuntimeHostConfigurationOption values to runtime config and ILLink.
-    https://github.com/dotnet/docs/blob/main/docs/core/deploying/trimming/trimming-options.md#trim-framework-library-features 
+    https://github.com/dotnet/docs/blob/main/docs/core/deploying/trimming/trimming-options.md#trim-framework-library-features
     -->
     <MetricsSupport>true</MetricsSupport>
   </PropertyGroup>
@@ -168,6 +168,7 @@
              Link="Common\System\Net\Http\HttpClientHandlerTest.ClientCertificates.cs" />
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.Cookies.cs"
              Link="Common\System\Net\Http\HttpClientHandlerTest.Cookies.cs" />
+    <Compile Include="HttpSession.cs" />
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.DefaultProxyCredentials.cs"
              Link="Common\System\Net\Http\HttpClientHandlerTest.DefaultProxyCredentials.cs" />
     <Compile Include="$(CommonTestPath)TestUtilities\System\DisableParallelization.cs"
