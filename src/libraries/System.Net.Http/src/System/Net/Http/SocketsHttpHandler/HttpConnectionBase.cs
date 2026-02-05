@@ -21,6 +21,8 @@ namespace System.Net.Http
 
         private static long s_connectionCounter = -1;
 
+        private IPEndPoint? _remoteEndPoint;
+
         // May be null if none of the counters were enabled when the connection was established.
         private ConnectionMetrics? _connectionMetrics;
 
@@ -55,6 +57,8 @@ namespace System.Net.Http
 
         protected void MarkConnectionAsEstablished(Activity? connectionSetupActivity, IPEndPoint? remoteEndPoint)
         {
+            _remoteEndPoint = remoteEndPoint;
+
             ConnectionSetupActivity = connectionSetupActivity;
             if (GlobalHttpSettings.MetricsHandler.IsGloballyEnabled)
             {
@@ -240,8 +244,9 @@ namespace System.Net.Http
                 long lifetimeTicks = GetLifetimeTicks(nowTicks);
                 if (lifetimeTicks > pooledConnectionLifetime.TotalMilliseconds)
                 {
-                    if (NetEventSource.Log.IsEnabled()) Trace($"Scavenging connection. Lifetime {TimeSpan.FromMilliseconds(lifetimeTicks)} > {pooledConnectionLifetime}.");
-                    return false;
+                    bool isValid = CheckDnsValidity();
+                    if (NetEventSource.Log.IsEnabled()) Trace($"Scavenging connection. Lifetime {TimeSpan.FromMilliseconds(lifetimeTicks)} > {pooledConnectionLifetime}; address '{_remoteEndPoint?.Address}' for '{_pool.OriginAuthority.IdnHost}' {(isValid ? "is" : "isn't")} valid.");
+                    return isValid;
                 }
             }
 
@@ -252,6 +257,29 @@ namespace System.Net.Http
             }
 
             return true;
+
+            bool CheckDnsValidity()
+            {
+                if (_remoteEndPoint is null)
+                {
+                    return false;
+                }
+
+                string targetHost =_pool.OriginAuthority.IdnHost;
+                if (GlobalHttpSettings.SocketsHttpHandler.AllowHttp3 && this is Http3Connection http3Connection)
+                {
+                    targetHost = http3Connection.Authority.IdnHost;
+                }
+                var ips = Dns.GetHostAddresses(targetHost);
+                for (int i = 0; i < ips.Length; ++i)
+                {
+                    if (ips[i].Equals(_remoteEndPoint.Address))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
         }
     }
 }
