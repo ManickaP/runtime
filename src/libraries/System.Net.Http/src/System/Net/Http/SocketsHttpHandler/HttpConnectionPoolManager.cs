@@ -459,6 +459,7 @@ namespace System.Net.Http
             {
                 pool.Value.Dispose();
             }
+            _dnsCache.Dispose();
 
 #if !ILLUMOS && !SOLARIS && !HAIKU
             _networkChangeCleanup?.Dispose();

@@ -9,7 +9,7 @@ using System.Threading;
 
 namespace System.Net.Http;
 
-internal class DnsCache : IDisposable
+internal sealed class DnsCache : IDisposable
 {
     /// <summary>
     /// 60 minutes, in milliseconds.
@@ -130,7 +130,7 @@ internal class DnsCache : IDisposable
         _disposed = true;
     }
 
-    private class DnsCacheRecord
+    private sealed class DnsCacheRecord
     {
         public string HostName { get; }
 
