@@ -27,7 +27,7 @@ internal class DnsCache : IDisposable
 
     private readonly ConcurrentDictionary<string, DnsCacheRecord> _cache = new();
 
-    private SemaphoreSlim _refreshPing = new SemaphoreSlim(0);
+    private SemaphoreSlim _refreshSemaphore = new SemaphoreSlim(0);
 
     private volatile bool _disposed;
 
@@ -73,7 +73,7 @@ internal class DnsCache : IDisposable
                 return record;
             });
 
-        _refreshPing.Release();
+        _refreshSemaphore.Release();
         return record;
     }
 
@@ -92,7 +92,7 @@ internal class DnsCache : IDisposable
 
         while (!_disposed)
         {
-            await _refreshPing.WaitAsync(refreshIn <= MinTimeout ? MinTimeout : refreshIn).ConfigureAwait(false);
+            await _refreshSemaphore.WaitAsync(refreshIn <= MinTimeout ? MinTimeout : refreshIn).ConfigureAwait(false);
             long now = Environment.TickCount64;
 
             foreach (var pair in _cache)

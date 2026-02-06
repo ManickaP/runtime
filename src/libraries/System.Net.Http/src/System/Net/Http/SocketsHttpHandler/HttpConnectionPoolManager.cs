@@ -41,6 +41,7 @@ namespace System.Net.Http
         private readonly Timer? _heartBeatTimer;
 
         private readonly HttpConnectionSettings _settings;
+        private readonly DnsCache _dnsCache;
         private readonly IWebProxy? _proxy;
         private readonly ICredentials? _proxyCredentials;
 
@@ -60,6 +61,7 @@ namespace System.Net.Http
         public HttpConnectionPoolManager(HttpConnectionSettings settings)
         {
             _settings = settings;
+            _dnsCache = new DnsCache(settings._pooledConnectionLifetime);
             _pools = new ConcurrentDictionary<HttpConnectionKey, HttpConnectionPool>();
 
             // As an optimization, we can sometimes avoid the overheads associated with
@@ -225,6 +227,7 @@ namespace System.Net.Http
 #endif
 
         public HttpConnectionSettings Settings => _settings;
+        public DnsCache DnsCache => _dnsCache;
         public ICredentials? ProxyCredentials => _proxyCredentials;
 
         private HttpConnectionKey GetConnectionKey(HttpRequestMessage request, Uri? proxyUri, bool isProxyConnect)

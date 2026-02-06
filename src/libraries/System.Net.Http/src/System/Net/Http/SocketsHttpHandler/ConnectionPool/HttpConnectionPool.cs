@@ -285,6 +285,7 @@ namespace System.Net.Http
         public string? TelemetryServerAddress => _telemetryServerAddress;
         public HttpAuthority OriginAuthority => _originAuthority;
         public HttpConnectionSettings Settings => _poolManager.Settings;
+        public DnsCache DnsCache => _poolManager.DnsCache;
         public HttpConnectionKind Kind => _kind;
         public bool IsSecure => _kind == HttpConnectionKind.Https || _kind == HttpConnectionKind.SslProxyTunnel || _kind == HttpConnectionKind.SslSocksTunnel;
         public Uri? ProxyUri => _proxyUri;
@@ -864,7 +865,7 @@ namespace System.Net.Http
             TimeSpan pooledConnectionLifetime = _poolManager.Settings._pooledConnectionLifetime;
             if (pooledConnectionLifetime != Timeout.InfiniteTimeSpan)
             {
-                return connection.GetLifetimeTicks(Environment.TickCount64) > pooledConnectionLifetime.TotalMilliseconds;
+                return connection.GetLifetimeTicks(Environment.TickCount64) > pooledConnectionLifetime.TotalMilliseconds || connection.CheckDnsValidity();
             }
 
             return false;
@@ -875,7 +876,7 @@ namespace System.Net.Http
             TimeSpan lifetime = _poolManager.Settings._pooledConnectionLifetime;
             if (lifetime != Timeout.InfiniteTimeSpan)
             {
-                return lifetime == TimeSpan.Zero || connection.GetLifetimeTicks(Environment.TickCount64) > lifetime.TotalMilliseconds;
+                return lifetime == TimeSpan.Zero || connection.GetLifetimeTicks(Environment.TickCount64) > lifetime.TotalMilliseconds || connection.CheckDnsValidity();
             }
 
             return false;

@@ -257,29 +257,29 @@ namespace System.Net.Http
             }
 
             return true;
+        }
 
-            bool CheckDnsValidity()
+        internal bool CheckDnsValidity()
+        {
+            if (_remoteEndPoint is null)
             {
-                if (_remoteEndPoint is null)
-                {
-                    return false;
-                }
-
-                string targetHost =_pool.OriginAuthority.IdnHost;
-                if (GlobalHttpSettings.SocketsHttpHandler.AllowHttp3 && this is Http3Connection http3Connection)
-                {
-                    targetHost = http3Connection.Authority.IdnHost;
-                }
-                var ips = Dns.GetHostAddresses(targetHost);
-                for (int i = 0; i < ips.Length; ++i)
-                {
-                    if (ips[i].Equals(_remoteEndPoint.Address))
-                    {
-                        return true;
-                    }
-                }
                 return false;
             }
+
+            string targetHost =_pool.OriginAuthority.IdnHost;
+            if (GlobalHttpSettings.SocketsHttpHandler.AllowHttp3 && this is Http3Connection http3Connection)
+            {
+                targetHost = http3Connection.Authority.IdnHost;
+            }
+            var ips = _pool.DnsCache.GetIPAddresses(targetHost);
+            for (int i = 0; i < ips.Length; ++i)
+            {
+                if (ips[i].Equals(_remoteEndPoint.Address))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
