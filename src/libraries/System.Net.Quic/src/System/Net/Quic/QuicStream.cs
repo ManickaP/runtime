@@ -120,6 +120,7 @@ public sealed partial class QuicStream
 
     private long _id = -1;
     private readonly QuicStreamType _type;
+    private QuicStreamPriority _priority = QuicStreamPriority.Default;
 
     /// <summary>
     /// Provided via <see cref="StartAsync(Action{QuicStreamType}, CancellationToken)" /> from <see cref="QuicConnection" /> so that <see cref="QuicStream"/> can decrement its available stream count field.
@@ -136,6 +137,28 @@ public sealed partial class QuicStream
     /// Stream type, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#name-stream-types-and-identifier" />.
     /// </summary>
     public QuicStreamType Type => _type;
+
+    /// <summary>
+    /// Stream priority, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#name-stream-prioritization" />.
+    /// </summary>
+    /// <remarks>
+    /// Note that if there is a higher number of stream with different priorities it might affect the overall performance.
+    /// Setting the priority itself is not an expensive operation, but it does involve P/Invoke call.
+    /// This method is not thread-safe, setting this property concurrently from multiple threads might lead to inconsistent behavior.
+    /// </remarks>
+    public QuicStreamPriority Priority
+    {
+        get => _priority;
+        set
+        {
+            if (value != _priority)
+            {
+                ushort priority = (ushort)(((byte)value << 8) | 0xFF);
+                SetMsQuicParameter(_handle, QUIC_PARAM_STREAM_PRIORITY, priority);
+                _priority = value;
+            }
+        }
+    }
 
     /// <summary>
     /// A <see cref="Task"/> that will get completed once reading side has been closed.

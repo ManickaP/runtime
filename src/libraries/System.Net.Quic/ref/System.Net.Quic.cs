@@ -23,17 +23,17 @@ namespace System.Net.Quic
     public sealed partial class QuicConnection : System.IAsyncDisposable
     {
         internal QuicConnection() { }
-        [Runtime.Versioning.SupportedOSPlatformGuard("windows")]
-        [Runtime.Versioning.SupportedOSPlatformGuard("linux")]
-        [Runtime.Versioning.SupportedOSPlatformGuard("osx")]
+        [System.Runtime.Versioning.SupportedOSPlatformGuardAttribute("linux")]
+        [System.Runtime.Versioning.SupportedOSPlatformGuardAttribute("osx")]
+        [System.Runtime.Versioning.SupportedOSPlatformGuardAttribute("windows")]
         public static bool IsSupported { get { throw null; } }
         public System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
         public System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
         [System.CLSCompliantAttribute(false)]
         public System.Net.Security.TlsCipherSuite NegotiatedCipherSuite { get { throw null; } }
-        public System.Security.Authentication.SslProtocols SslProtocol { get { throw null; } }
         public System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
         public System.Net.IPEndPoint RemoteEndPoint { get { throw null; } }
+        public System.Security.Authentication.SslProtocols SslProtocol { get { throw null; } }
         public string TargetHostName { get { throw null; } }
         public System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
@@ -80,9 +80,9 @@ namespace System.Net.Quic
     public sealed partial class QuicListener : System.IAsyncDisposable
     {
         internal QuicListener() { }
-        [Runtime.Versioning.SupportedOSPlatformGuard("windows")]
-        [Runtime.Versioning.SupportedOSPlatformGuard("linux")]
-        [Runtime.Versioning.SupportedOSPlatformGuard("osx")]
+        [System.Runtime.Versioning.SupportedOSPlatformGuardAttribute("linux")]
+        [System.Runtime.Versioning.SupportedOSPlatformGuardAttribute("osx")]
+        [System.Runtime.Versioning.SupportedOSPlatformGuardAttribute("windows")]
         public static bool IsSupported { get { throw null; } }
         public System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
         public System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
@@ -121,6 +121,7 @@ namespace System.Net.Quic
         public long Id { get { throw null; } }
         public override long Length { get { throw null; } }
         public override long Position { get { throw null; } set { } }
+        public System.Net.Quic.QuicStreamPriority Priority { get { throw null; } set { } }
         public System.Threading.Tasks.Task ReadsClosed { get { throw null; } }
         public override int ReadTimeout { get { throw null; } set { } }
         public System.Net.Quic.QuicStreamType Type { get { throw null; } }
@@ -157,6 +158,12 @@ namespace System.Net.Quic
         private readonly int _dummyPrimitive;
         public int BidirectionalIncrement { get { throw null; } init { } }
         public int UnidirectionalIncrement { get { throw null; } init { } }
+    }
+    public enum QuicStreamPriority : byte
+    {
+        Lowest = (byte)0,
+        Default = (byte)127,
+        Highest = (byte)255,
     }
     public enum QuicStreamType
     {
