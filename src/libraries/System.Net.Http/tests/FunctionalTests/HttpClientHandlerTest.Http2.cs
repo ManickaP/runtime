@@ -13,8 +13,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.DotNet.RemoteExecutor;
+using TestUtilities;
 using Xunit;
 using Xunit.Abstractions;
+
+using Poo = TestUtilities.TestEventListener;
 
 namespace System.Net.Http.Functional.Tests
 {
@@ -178,6 +181,35 @@ namespace System.Net.Http.Functional.Tests
                 HttpResponseMessage response = await sendTask;
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 Assert.Equal(0, (await response.Content.ReadAsByteArrayAsync()).Length);
+            }
+        }
+
+        [Fact]
+        public async Task Http2_WindowUpdateOverflow_Success()
+        {
+            //using var _ = new Poo(Console.Out, Poo.NetworkingEvents);
+            using (Http2LoopbackServer server = Http2LoopbackServer.CreateServer())
+            using (HttpClient client = CreateHttpClient())
+            {
+                Task<HttpResponseMessage> sendTask = client.GetAsync(server.Address);
+
+                Http2LoopbackConnection connection = await server.EstablishConnectionAsync();
+
+                int streamId = (await connection.ReadRequestDataAsync()).RequestId;
+
+                await connection.WriteFrameAsync(new WindowUpdateFrame(int.MaxValue, streamId));
+                var frame = await connection.ReadFrameAsync(TimeSpan.FromSeconds(1));
+
+                Console.WriteLine(frame is null);
+
+                Assert.Equal(streamId, frame.StreamId);
+                Assert.Equal(FrameType.RstStream, frame.Type);
+
+                await IgnoreExceptions(sendTask);
+
+                sendTask = client.GetAsync(server.Address);
+                await connection.HandleRequestAsync();
+                await sendTask;
             }
         }
 
