@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.DotNet.RemoteExecutor;
+using TestUtilities;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -21,18 +22,116 @@ namespace System.Net.Http.WinHttpHandlerFunctional.Tests
 
     // Note:  Disposing the HttpClient object automatically disposes the handler within. So, it is not necessary
     // to separately Dispose (or have a 'using' statement) for the handler.
-    public class WinHttpHandlerTest
+    public class WinHttpHandlerTest : HttpClientHandlerTestBase
     {
         private const string SlowServer = "http://httpbin.org/drip?numbytes=1&duration=1&delay=40&code=200";
-
-        private readonly ITestOutputHelper _output;
 
         public static IEnumerable<object[]> HttpVersions = [[HttpVersion.Version11, Configuration.Http.SecureRemoteEchoServer], [HttpVersion20.Value, Configuration.Http.Http2RemoteEchoServer]];
 
         public WinHttpHandlerTest(ITestOutputHelper output)
+            : base(output)
+        { }
+
+#if NET
+        [Theory]
+        [MemberData(nameof(AltSvcHeaderUpgradeVersions))]
+        public async Task AltSvc_Header_Upgrade_Success(Version fromVersion, bool overrideHost)
         {
-            _output = output;
+            //using var _ = new TestEventListener(_output, TestEventListener.NetworkingEvents);
+            // The test makes a request to a HTTP/1 or HTTP/2 server first, which supplies an Alt-Svc header pointing to the second server.
+            using GenericLoopbackServer firstServer =
+                fromVersion.Major switch
+                {
+                    1 => Http11LoopbackServerFactory.Singleton.CreateServer(new LoopbackServer.Options { UseSsl = true }),
+                    2 => Http2LoopbackServer.CreateServer(),
+                    _ => throw new Exception("Unknown HTTP version.")
+                };
+
+            // The second request is expected to come in on this HTTP/3 server.
+            using Http3LoopbackServer secondServer = (Http3LoopbackServer)Http3LoopbackServerFactory.Singleton.CreateServer();
+
+            if (!overrideHost)
+                Assert.Equal(firstServer.Address.IdnHost, secondServer.Address.IdnHost);
+
+            WinHttpClientHandler handler = CreateHttpClientHandler(fromVersion);
+            using HttpClient client = CreateHttpClient(handler);
+            client.DefaultRequestVersion = HttpVersion.Version30;
+
+            Task<HttpResponseMessage> firstResponseTask = client.GetAsync(firstServer.Address);
+            Task serverTask = firstServer.AcceptConnectionSendResponseAndCloseAsync(additionalHeaders: new[]
+            {
+                new HttpHeaderData("Alt-Svc", $"h3=\"{(overrideHost ? secondServer.Address.IdnHost : null)}:{secondServer.Address.Port}\"")
+            });
+
+            await new[] { firstResponseTask, serverTask }.WhenAllOrAnyFailed(30_000);
+
+            using HttpResponseMessage firstResponse = firstResponseTask.Result;
+            Assert.True(firstResponse.IsSuccessStatusCode);
+
+            Console.WriteLine(firstResponse);
+
+            await AltSvc_Upgrade_Success(firstServer, secondServer, client);
         }
+
+        public static TheoryData<Version, bool> AltSvcHeaderUpgradeVersions =>
+            new TheoryData<Version, bool>
+            {
+                /*{ HttpVersion.Version11, true },*/
+                { HttpVersion.Version11, false },
+                /*{ HttpVersion.Version20, true },
+                { HttpVersion.Version20, false }*/
+            };
+
+        private async Task AltSvc_Upgrade_Success(GenericLoopbackServer firstServer, Http3LoopbackServer secondServer, HttpClient client)
+        {
+            Task<HttpResponseMessage> secondResponseTask = client.GetAsync(firstServer.Address);
+            Task<HttpRequestData> secondRequestTask = secondServer.AcceptConnectionSendResponseAndCloseAsync();
+
+            await new[] { (Task)secondResponseTask, secondRequestTask }.WhenAllOrAnyFailed(30_000);
+
+            HttpRequestData secondRequest = secondRequestTask.Result;
+
+            Console.WriteLine(secondRequest);
+            using HttpResponseMessage secondResponse = secondResponseTask.Result;
+
+            string altUsed = secondRequest.GetSingleHeaderValue("Alt-Used");
+            Assert.Equal($"{secondServer.Address.IdnHost}:{secondServer.Address.Port}", altUsed);
+            Assert.True(secondResponse.IsSuccessStatusCode);
+        }
+
+        [Theory]
+        [InlineData(1, 1)]
+        [InlineData(2, 0)]
+        [InlineData(3, 0)]
+        public async Task GetAsync_Succeeds(int major, int minor)
+        {
+            using var _ = new TestEventListener(_output, TestEventListener.NetworkingEvents);
+            Version version = new Version(major, minor);
+            LoopbackServerFactory factory = major switch
+            {
+                1 => Http11LoopbackServerFactory.Singleton,
+                2 => Http2LoopbackServerFactory.Singleton,
+                3 => Http3LoopbackServerFactory.Singleton,
+                _ => throw new InvalidOperationException($"Unexpected HTTP version: {version}")
+            };
+            await factory.CreateServerAsync(async (server, url) =>
+            {
+                WinHttpClientHandler handler = CreateHttpClientHandler(version);
+                using (HttpClient client = CreateHttpClient(handler))
+                {
+                    client.DefaultRequestVersion = version;
+                    client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                    Task<HttpResponseMessage> clientTask = client.GetAsync(url);
+
+                    Task<HttpRequestData> serverTask = server.AcceptConnectionSendResponseAndCloseAsync();
+
+                    await TestHelper.WhenAllCompletedOrAnyFailed(clientTask, serverTask);
+                    using HttpResponseMessage response = await clientTask;
+                    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                }
+            });
+        }
+#endif
 
         [OuterLoop]
         [Fact]
