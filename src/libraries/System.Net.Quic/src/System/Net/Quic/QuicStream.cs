@@ -607,6 +607,7 @@ public sealed partial class QuicStream
             Volatile.Write(ref _receivedNeedsEnable, 1);
         }
 
+        Thread.Sleep(1);
         _receiveTcs.TrySetResult();
 
         data.TotalBufferLength = totalCopied;
