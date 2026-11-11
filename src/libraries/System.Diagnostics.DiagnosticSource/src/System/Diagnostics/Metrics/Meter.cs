@@ -17,7 +17,7 @@ namespace System.Diagnostics.Metrics
     {
         private static readonly List<Meter> s_allMeters = new List<Meter>();
         private List<Instrument> _instruments = new List<Instrument>();
-        private Dictionary<string, List<Instrument>> _nonObservableInstrumentsCache = new();
+        private Dictionary<string, List<Instrument>> _instrumentsCache = new();
 
         internal bool Disposed { get; private set; }
 
@@ -262,7 +262,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableUpDownCounter: the process heap size or the approximate number of items in a lock-free circular buffer.
         /// </remarks>
         public ObservableUpDownCounter<T> CreateObservableUpDownCounter<T>(string name, Func<T> observeValue, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags: null);
+                                        (ObservableUpDownCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableUpDownCounter<T>), name, unit, description, tags: null, () => new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags: null), observeValue);
 
         /// <summary>
         /// Create an ObservableUpDownCounter object. ObservableUpDownCounter is an Instrument which reports increasing or decreasing value(s) when the instrument is being observed.
@@ -276,7 +276,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableUpDownCounter: the process heap size or the approximate number of items in a lock-free circular buffer.
         /// </remarks>
         public ObservableUpDownCounter<T> CreateObservableUpDownCounter<T>(string name, Func<T> observeValue, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags);
+                                        (ObservableUpDownCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableUpDownCounter<T>), name, unit, description, tags, () => new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags), observeValue);
 
 
         /// <summary>
@@ -290,7 +290,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableUpDownCounter: the process heap size or the approximate number of items in a lock-free circular buffer.
         /// </remarks>
         public ObservableUpDownCounter<T> CreateObservableUpDownCounter<T>(string name, Func<Measurement<T>> observeValue, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags: null);
+                                        (ObservableUpDownCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableUpDownCounter<T>), name, unit, description, tags: null, () => new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags: null), observeValue);
 
         /// <summary>
         /// Create an ObservableUpDownCounter object. ObservableUpDownCounter is an Instrument which reports increasing or decreasing value(s) when the instrument is being observed.
@@ -304,7 +304,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableUpDownCounter: the process heap size or the approximate number of items in a lock-free circular buffer.
         /// </remarks>
         public ObservableUpDownCounter<T> CreateObservableUpDownCounter<T>(string name, Func<Measurement<T>> observeValue, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags);
+                                        (ObservableUpDownCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableUpDownCounter<T>), name, unit, description, tags, () => new ObservableUpDownCounter<T>(this, name, observeValue, unit, description, tags), observeValue);
 
         /// <summary>
         /// Create an ObservableUpDownCounter object. ObservableUpDownCounter is an Instrument which reports increasing or decreasing value(s) when the instrument is being observed.
@@ -317,7 +317,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableUpDownCounter: the process heap size or the approximate number of items in a lock-free circular buffer.
         /// </remarks>
         public ObservableUpDownCounter<T> CreateObservableUpDownCounter<T>(string name, Func<IEnumerable<Measurement<T>>> observeValues, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableUpDownCounter<T>(this, name, observeValues, unit, description, tags: null);
+                                        (ObservableUpDownCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableUpDownCounter<T>), name, unit, description, tags: null, () => new ObservableUpDownCounter<T>(this, name, observeValues, unit, description, tags: null), observeValues);
 
         /// <summary>
         /// Create an ObservableUpDownCounter object. ObservableUpDownCounter is an Instrument which reports increasing or decreasing value(s) when the instrument is being observed.
@@ -331,7 +331,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableUpDownCounter: the process heap size or the approximate number of items in a lock-free circular buffer.
         /// </remarks>
         public ObservableUpDownCounter<T> CreateObservableUpDownCounter<T>(string name, Func<IEnumerable<Measurement<T>>> observeValues, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableUpDownCounter<T>(this, name, observeValues, unit, description, tags);
+                                        (ObservableUpDownCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableUpDownCounter<T>), name, unit, description, tags, () => new ObservableUpDownCounter<T>(this, name, observeValues, unit, description, tags), observeValues);
 
         /// <summary>
         /// ObservableCounter is an Instrument which reports monotonically increasing value(s) when the instrument is being observed.
@@ -344,7 +344,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableCounter: The number of page faults for each process.
         /// </remarks>
         public ObservableCounter<T> CreateObservableCounter<T>(string name, Func<T> observeValue, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableCounter<T>(this, name, observeValue, unit, description, tags: null);
+                                        (ObservableCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableCounter<T>), name, unit, description, tags: null, () => new ObservableCounter<T>(this, name, observeValue, unit, description, tags: null), observeValue);
 
         /// <summary>
         /// ObservableCounter is an Instrument which reports monotonically increasing value(s) when the instrument is being observed.
@@ -358,7 +358,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableCounter: The number of page faults for each process.
         /// </remarks>
         public ObservableCounter<T> CreateObservableCounter<T>(string name, Func<T> observeValue, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableCounter<T>(this, name, observeValue, unit, description, tags);
+                                        (ObservableCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableCounter<T>), name, unit, description, tags, () => new ObservableCounter<T>(this, name, observeValue, unit, description, tags), observeValue);
 
         /// <summary>
         /// ObservableCounter is an Instrument which reports monotonically increasing value(s) when the instrument is being observed.
@@ -371,7 +371,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableCounter: The number of page faults for each process.
         /// </remarks>
         public ObservableCounter<T> CreateObservableCounter<T>(string name, Func<Measurement<T>> observeValue, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableCounter<T>(this, name, observeValue, unit, description, tags: null);
+                                        (ObservableCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableCounter<T>), name, unit, description, tags: null, () => new ObservableCounter<T>(this, name, observeValue, unit, description, tags: null), observeValue);
 
         /// <summary>
         /// ObservableCounter is an Instrument which reports monotonically increasing value(s) when the instrument is being observed.
@@ -385,7 +385,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableCounter: The number of page faults for each process.
         /// </remarks>
         public ObservableCounter<T> CreateObservableCounter<T>(string name, Func<Measurement<T>> observeValue, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableCounter<T>(this, name, observeValue, unit, description, tags);
+                                        (ObservableCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableCounter<T>), name, unit, description, tags, () => new ObservableCounter<T>(this, name, observeValue, unit, description, tags), observeValue);
 
 
         /// <summary>
@@ -399,7 +399,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableCounter: The number of page faults for each process.
         /// </remarks>
         public ObservableCounter<T> CreateObservableCounter<T>(string name, Func<IEnumerable<Measurement<T>>> observeValues, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableCounter<T>(this, name, observeValues, unit, description, tags: null);
+                                        (ObservableCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableCounter<T>), name, unit, description, tags: null, () => new ObservableCounter<T>(this, name, observeValues, unit, description, tags: null), observeValues);
 
         /// <summary>
         /// ObservableCounter is an Instrument which reports monotonically increasing value(s) when the instrument is being observed.
@@ -413,7 +413,7 @@ namespace System.Diagnostics.Metrics
         /// Example uses for ObservableCounter: The number of page faults for each process.
         /// </remarks>
         public ObservableCounter<T> CreateObservableCounter<T>(string name, Func<IEnumerable<Measurement<T>>> observeValues, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableCounter<T>(this, name, observeValues, unit, description, tags);
+                                        (ObservableCounter<T>)GetOrCreateInstrument<T>(typeof(ObservableCounter<T>), name, unit, description, tags, () => new ObservableCounter<T>(this, name, observeValues, unit, description, tags), observeValues);
 
         /// <summary>
         /// ObservableGauge is an asynchronous Instrument which reports non-additive value(s) (e.g. the room temperature - it makes no sense to report the temperature value from multiple rooms and sum them up) when the instrument is being observed.
@@ -423,7 +423,7 @@ namespace System.Diagnostics.Metrics
         /// <param name="unit">Optional instrument unit of measurements.</param>
         /// <param name="description">Optional instrument description.</param>
         public ObservableGauge<T> CreateObservableGauge<T>(string name, Func<T> observeValue, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableGauge<T>(this, name, observeValue, unit, description, tags: null);
+                                        (ObservableGauge<T>)GetOrCreateInstrument<T>(typeof(ObservableGauge<T>), name, unit, description, tags: null, () => new ObservableGauge<T>(this, name, observeValue, unit, description, tags: null), observeValue);
 
         /// <summary>
         /// ObservableGauge is an asynchronous Instrument which reports non-additive value(s) (e.g. the room temperature - it makes no sense to report the temperature value from multiple rooms and sum them up) when the instrument is being observed.
@@ -434,7 +434,7 @@ namespace System.Diagnostics.Metrics
         /// <param name="description">Optional instrument description.</param>
         /// <param name="tags">Optional tags to attach to the gauge.</param>
         public ObservableGauge<T> CreateObservableGauge<T>(string name, Func<T> observeValue, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableGauge<T>(this, name, observeValue, unit, description, tags);
+                                        (ObservableGauge<T>)GetOrCreateInstrument<T>(typeof(ObservableGauge<T>), name, unit, description, tags, () => new ObservableGauge<T>(this, name, observeValue, unit, description, tags), observeValue);
 
         /// <summary>
         /// ObservableGauge is an asynchronous Instrument which reports non-additive value(s) (e.g. the room temperature - it makes no sense to report the temperature value from multiple rooms and sum them up) when the instrument is being observed.
@@ -444,7 +444,7 @@ namespace System.Diagnostics.Metrics
         /// <param name="unit">Optional instrument unit of measurements.</param>
         /// <param name="description">Optional instrument description.</param>
         public ObservableGauge<T> CreateObservableGauge<T>(string name, Func<Measurement<T>> observeValue, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableGauge<T>(this, name, observeValue, unit, description, tags: null);
+                                        (ObservableGauge<T>)GetOrCreateInstrument<T>(typeof(ObservableGauge<T>), name, unit, description, tags: null, () => new ObservableGauge<T>(this, name, observeValue, unit, description, tags: null), observeValue);
 
         /// <summary>
         /// ObservableGauge is an asynchronous Instrument which reports non-additive value(s) (e.g. the room temperature - it makes no sense to report the temperature value from multiple rooms and sum them up) when the instrument is being observed.
@@ -455,7 +455,7 @@ namespace System.Diagnostics.Metrics
         /// <param name="description">Optional instrument description.</param>
         /// <param name="tags">Optional tags to attach to the gauge.</param>
         public ObservableGauge<T> CreateObservableGauge<T>(string name, Func<Measurement<T>> observeValue, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableGauge<T>(this, name, observeValue, unit, description, tags);
+                                        (ObservableGauge<T>)GetOrCreateInstrument<T>(typeof(ObservableGauge<T>), name, unit, description, tags, () => new ObservableGauge<T>(this, name, observeValue, unit, description, tags), observeValue);
 
         /// <summary>
         /// ObservableGauge is an asynchronous Instrument which reports non-additive value(s) (e.g. the room temperature - it makes no sense to report the temperature value from multiple rooms and sum them up) when the instrument is being observed.
@@ -465,7 +465,7 @@ namespace System.Diagnostics.Metrics
         /// <param name="unit">Optional instrument unit of measurements.</param>
         /// <param name="description">Optional instrument description.</param>
         public ObservableGauge<T> CreateObservableGauge<T>(string name, Func<IEnumerable<Measurement<T>>> observeValues, string? unit = null, string? description = null) where T : struct =>
-                                        new ObservableGauge<T>(this, name, observeValues, unit, description, tags: null);
+                                        (ObservableGauge<T>)GetOrCreateInstrument<T>(typeof(ObservableGauge<T>), name, unit, description, tags: null, () => new ObservableGauge<T>(this, name, observeValues, unit, description, tags: null), observeValues);
 
         /// <summary>
         /// ObservableGauge is an asynchronous Instrument which reports non-additive value(s) (e.g. the room temperature - it makes no sense to report the temperature value from multiple rooms and sum them up) when the instrument is being observed.
@@ -476,7 +476,7 @@ namespace System.Diagnostics.Metrics
         /// <param name="description">Optional instrument description.</param>
         /// <param name="tags">Optional tags to attach to the gauge.</param>
         public ObservableGauge<T> CreateObservableGauge<T>(string name, Func<IEnumerable<Measurement<T>>> observeValues, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags) where T : struct =>
-                                        new ObservableGauge<T>(this, name, observeValues, unit, description, tags);
+                                        (ObservableGauge<T>)GetOrCreateInstrument<T>(typeof(ObservableGauge<T>), name, unit, description, tags, () => new ObservableGauge<T>(this, name, observeValues, unit, description, tags), observeValues);
 
         /// <summary>
         /// Dispose the Meter which will disable all instruments created by this meter.
@@ -509,9 +509,9 @@ namespace System.Diagnostics.Metrics
                 _instruments = new List<Instrument>();
             }
 
-            lock (_nonObservableInstrumentsCache)
+            lock (_instrumentsCache)
             {
-                _nonObservableInstrumentsCache.Clear();
+                _instrumentsCache.Clear();
             }
 
             if (instruments is not null)
@@ -523,13 +523,14 @@ namespace System.Diagnostics.Metrics
             }
         }
 
-        private static Instrument? GetCachedInstrument(List<Instrument> instrumentList, Type instrumentType, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags)
+        private static Instrument? GetCachedInstrument(List<Instrument> instrumentList, Type instrumentType, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags, object? callback)
         {
             Debug.Assert(instrumentList is not null);
             foreach (Instrument instrument in instrumentList)
             {
                 if (instrument.GetType() == instrumentType && instrument.Unit == unit &&
-                    instrument.Description == description && DiagnosticsHelper.CompareTags(instrument.Tags as List<KeyValuePair<string, object?>>, tags))
+                    instrument.Description == description && DiagnosticsHelper.CompareTags(instrument.Tags as List<KeyValuePair<string, object?>>, tags) &&
+                    (!instrument.IsObservable || Equals(instrument.Callback, callback)))
                 {
                     return instrument;
                 }
@@ -539,16 +540,16 @@ namespace System.Diagnostics.Metrics
         }
 
         // AddInstrument will be called when publishing the instrument (i.e. calling Instrument.Publish()).
-        private Instrument GetOrCreateInstrument<T>(Type instrumentType, string name, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags, Func<Instrument> instrumentCreator)
+        private Instrument GetOrCreateInstrument<T>(Type instrumentType, string name, string? unit, string? description, IEnumerable<KeyValuePair<string, object?>>? tags, Func<Instrument> instrumentCreator, object? callback = null)
         {
             List<Instrument>? instrumentList;
 
-            lock (_nonObservableInstrumentsCache)
+            lock (_instrumentsCache)
             {
-                if (!_nonObservableInstrumentsCache.TryGetValue(name, out instrumentList))
+                if (!_instrumentsCache.TryGetValue(name, out instrumentList))
                 {
                     instrumentList = new List<Instrument>();
-                    _nonObservableInstrumentsCache.Add(name, instrumentList);
+                    _instrumentsCache.Add(name, instrumentList);
                 }
             }
 
@@ -557,7 +558,7 @@ namespace System.Diagnostics.Metrics
             lock (instrumentList)
             {
                 // Find out if the instrument is already created.
-                Instrument? cachedInstrument = GetCachedInstrument(instrumentList, instrumentType, unit, description, tags);
+                Instrument? cachedInstrument = GetCachedInstrument(instrumentList, instrumentType, unit, description, tags, callback);
                 if (cachedInstrument is not null)
                 {
                     return cachedInstrument;
@@ -570,7 +571,7 @@ namespace System.Diagnostics.Metrics
             {
                 // It is possible GetOrCreateInstrument get called synchronously from different threads with same instrument name.
                 // we need to ensure only one instrument is added to the list.
-                Instrument? cachedInstrument = GetCachedInstrument(instrumentList, instrumentType, unit, description, tags);
+                Instrument? cachedInstrument = GetCachedInstrument(instrumentList, instrumentType, unit, description, tags, callback);
                 if (cachedInstrument is not null)
                 {
                     return cachedInstrument;

@@ -146,6 +146,9 @@ namespace System.Diagnostics.Metrics
         /// </summary>
         public virtual bool IsObservable => false;
 
+        // Returns the underlying user callback for built-in observable instruments, or null otherwise.
+        internal virtual object? Callback => null;
+
         // NotifyForUnpublishedInstrument is called from Meter.Dispose()
         internal void NotifyForUnpublishedInstrument()
         {

@@ -51,7 +51,7 @@ namespace System.Diagnostics.Metrics
 
         // Returns the underlying user callback for built-in observable instruments, or null for user-defined subclasses.
         // Subclasses provide their measurements via the abstract Observe() method instead.
-        internal virtual object? Callback => null;
+        internal override object? Callback => null;
 
         // Will be called from MeterListener.RecordObservableInstruments for each observable instrument.
         internal override void Observe(MeterListener listener)
